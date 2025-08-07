@@ -1,0 +1,142 @@
+call_for_service,count,percent
+1059 - security check,23389,17
+1195 - traffic stop,18392,13.4
+911dis - 911 disconnect,7578,5.5
+parker - parking violation,7325,5.3
+unwant - unwanted person,6186,4.5
+1033a - alarm audible,5695,4.2
+follow - follow up,4550,3.3
+1154 - suspicious vehicle,4468,3.3
+415 - disturbance,4160,3
+xfer - call transfer,3994,2.9
+1066 - suspicious person,3849,2.8
+488 - petty theft,3464,2.5
+xpat - extra patrol,2782,2
+pmisc - police miscellaneous,2699,2
+welfck - welfare check,2314,1.7
+1124 - abandoned vehicle,2279,1.7
+1194 - pedestrian stop,1657,1.2
+flag - flag down,1632,1.2
+5150 - mental health patient,1525,1.1
+1125 - traffic hazard,1417,1
+1182 - accident no injury,1383,1
+459a - auto burglary,1267,0.9
+info - info only,1216,0.9
+suscir - suspicious circumstances event,1200,0.9
+594 - vandalism,1066,0.8
+10851 - motor vehicle theft,1041,0.8
+1053 - person down,1030,0.8
+oaided - outside assist,993,0.7
+243a - assault / battery,925,0.7
+20002 - hit and run no injury,907,0.7
+fp - found property,736,0.5
+602l - trespassing,711,0.5
+23103 - reckless driving,706,0.5
+487 - grand theft,684,0.5
+footp - foot patrol - miscellaneous,665,0.5
+trans - transportation,645,0.5
+music - music,535,0.4
+fraud - fraud,500,0.4
+459r - residential burglary,463,0.3
+csb - civil standby,410,0.3
+211 - robbery,407,0.3
+unk - unknown,402,0.3
+1179 - accident w/ medical routed,381,0.3
+bolo - be on the lookout,347,0.3
+459c - commercial burglary,291,0.2
+1183 - accident no details,282,0.2
+misper - missing person,279,0.2
+422 - criminal threats,278,0.2
+314 - indecent exposure,276,0.2
+10851r - recovered stolen vehicle,272,0.2
+opdoor - open door,265,0.2
+10852 - vehcile parts theft,262,0.2
+firewk - fireworks,254,0.2
+417 - brandishing,251,0.2
+273.5 - domestic battery,240,0.2
+juvs - misc juvenile(s) activity complaint,227,0.2
+1033s - alarm silent,225,0.2
+fight - physical fight,216,0.2
+166.4 - court order violation,213,0.2
+1060 - pound the beat,208,0.2
+211a - business hold up/robbery alarm,208,0.2
+601 - juv out of control/runaway,208,0.2
+sfrmc - shots fired,194,0.1
+23152 - drunk driving,190,0.1
+374b - illegal dumping,185,0.1
+530.5 - identity theft,182,0.1
+lp - lost property,181,0.1
+1054 - possibly deceased person,177,0.1
+1033 - alarm video / other,174,0.1
+online - refered to online report,165,0.1
+1051 - drunk / intoxicated,153,0.1
+titl18 - mail theft,151,0.1
+party - party,148,0.1
+1184 - traffic control,139,0.1
+245 - assault with a deadly weapon,134,0.1
+1027 - wanted person / warrant,129,0.1
+sa - special assignment,117,0.1
+653m - annoying telephone calls,110,0.1
+testp - police test call,102,0.1
+rmc - richmond municipal code violation,100,0.1
+451 - arson,97,0.1
+dogs - aggressive dogs,97,0.1
+1061 - community meeting,96,0.1
+loiter - loitering,93,0.1
+597 - cruelty to animals,90,0.1
+hs - narcotics use/possession,88,0.1
+300 - child neglect / endangerment,81,0.1
+mgun - person with a gun,76,0.1
+1181 - accident minor injury,71,0.1
+20001 - hit and run with injury,68,0
+misjuv - missing juvenile,66,0
+1056a - suicide attempt,65,0
+484 - illegal use of a card,61,0
+261 - rape,59,0
+bunco - fraud (report),57,0
+1195b - bike stop,56,0
+notifi - notification,48,0
+288 - child molestation,47,0
+stalk - stalking,45,0
+22350 - speeding,44,0
+488ic - theft in custody,44,0
+273d - child abuse with great bodily injury,43,0
+1070 - prowler,42,0
+470 - forgery,42,0
+459 - burglary (misc),38,0
+1055 - deceased person,37,0
+23110 - throwing objects at a vehicle,35,0
+368 - elder abuse,34,0
+246 - shooting into a dwelling,28,0
+1062 - beat projects,27,0
+sw - search warrant,24,0
+215 - car jacking,22,0
+243.4 - sexual battery / assault,18,0
+503 - embezzlement,16,0
+496 - stolen property,15,0
+vc - vehicle code violation,15,0
+601r - runaway juvenile returned,14,0
+idmisc - evidence work misc.,14,0
+370 - public nuisance,11,0
+pc - penal code / misc (report),11,0
+1071 - shooting (actual victim),10,0
+148.1 - bomb threat,10,0
+dopers - narcotic sales,9,0
+sidshw - sideshow,8,0
+1056 - suicide,7,0
+207 - kidnapping,7,0
+647b - prostition,7,0
+code5 - stakeout,7,0
+22810 - assault with pepper spray / tear gas,5,0
+247b - shooting into an unoccupied vehicle,5,0
+220 - assault with intent to rape or rob,4,0
+1075 - shots fired (shotspotter),3,0
+id459a - evidence work auto burglary,3,0
+idrec - evidence work recovered 10851,3,0
+278.5 - custody order violation,2,0
+330 - gambling,2,0
+odor - odor complaint,2,0
+537 - defrauding an innkeeper,1,0
+foaided - outside assist,1,0
+id459c - evidence work commercial burglary10/16/2023 8:50,1,0
+new - new call (unknown),1,0

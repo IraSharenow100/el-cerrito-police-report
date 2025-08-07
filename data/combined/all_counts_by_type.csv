@@ -1,0 +1,118 @@
+name,lat,lon,Incident_Count,call_for_service
+El Cerrito Plaza BART,37.90295,-122.29923,3,243a - assault / battery
+El Cerrito Del Norte BART,37.92505,-122.31676,1,243a - assault / battery
+Castro Park Pickleball,37.91878,-122.30319,2,243a - assault / battery
+El Cerrito Community Center,37.9156,-122.30181,15,243a - assault / battery
+El Cerrito High School,37.91591,-122.30514,2,243a - assault / battery
+Korematsu Middle School,37.91599,-122.29687,1,243a - assault / battery
+Harding Elementary School,37.90164,-122.30161,21,243a - assault / battery
+Madera Elementary School,37.92216,-122.28563,1,243a - assault / battery
+El Cerrito Library,37.90258,-122.30623,2,243a - assault / battery
+El Cerrito Plaza BART,37.90295,-122.29923,7,10851 - motor vehicle theft
+El Cerrito Del Norte BART,37.92505,-122.31676,2,10851 - motor vehicle theft
+Castro Park Pickleball,37.91878,-122.30319,5,10851 - motor vehicle theft
+El Cerrito Community Center,37.9156,-122.30181,0,10851 - motor vehicle theft
+El Cerrito High School,37.91591,-122.30514,8,10851 - motor vehicle theft
+Korematsu Middle School,37.91599,-122.29687,1,10851 - motor vehicle theft
+Harding Elementary School,37.90164,-122.30161,21,10851 - motor vehicle theft
+Madera Elementary School,37.92216,-122.28563,0,10851 - motor vehicle theft
+El Cerrito Library,37.90258,-122.30623,15,10851 - motor vehicle theft
+El Cerrito Plaza BART,37.90295,-122.29923,6,459a - auto burglary
+El Cerrito Del Norte BART,37.92505,-122.31676,1,459a - auto burglary
+Castro Park Pickleball,37.91878,-122.30319,8,459a - auto burglary
+El Cerrito Community Center,37.9156,-122.30181,4,459a - auto burglary
+El Cerrito High School,37.91591,-122.30514,11,459a - auto burglary
+Korematsu Middle School,37.91599,-122.29687,4,459a - auto burglary
+Harding Elementary School,37.90164,-122.30161,23,459a - auto burglary
+Madera Elementary School,37.92216,-122.28563,4,459a - auto burglary
+El Cerrito Library,37.90258,-122.30623,12,459a - auto burglary
+El Cerrito Plaza BART,37.90295,-122.29923,88,parker - parking violation
+El Cerrito Del Norte BART,37.92505,-122.31676,52,parker - parking violation
+Castro Park Pickleball,37.91878,-122.30319,34,parker - parking violation
+El Cerrito Community Center,37.9156,-122.30181,32,parker - parking violation
+El Cerrito High School,37.91591,-122.30514,53,parker - parking violation
+Korematsu Middle School,37.91599,-122.29687,18,parker - parking violation
+Harding Elementary School,37.90164,-122.30161,182,parker - parking violation
+Madera Elementary School,37.92216,-122.28563,10,parker - parking violation
+El Cerrito Library,37.90258,-122.30623,173,parker - parking violation
+El Cerrito Plaza BART,37.90295,-122.29923,24,unwant - unwanted person
+El Cerrito Del Norte BART,37.92505,-122.31676,3,unwant - unwanted person
+Castro Park Pickleball,37.91878,-122.30319,1,unwant - unwanted person
+El Cerrito Community Center,37.9156,-122.30181,6,unwant - unwanted person
+El Cerrito High School,37.91591,-122.30514,4,unwant - unwanted person
+Korematsu Middle School,37.91599,-122.29687,2,unwant - unwanted person
+Harding Elementary School,37.90164,-122.30161,158,unwant - unwanted person
+Madera Elementary School,37.92216,-122.28563,0,unwant - unwanted person
+El Cerrito Library,37.90258,-122.30623,12,unwant - unwanted person
+El Cerrito Plaza BART,37.90295,-122.29923,4,487 - grand theft
+El Cerrito Del Norte BART,37.92505,-122.31676,1,487 - grand theft
+Castro Park Pickleball,37.91878,-122.30319,5,487 - grand theft
+El Cerrito Community Center,37.9156,-122.30181,1,487 - grand theft
+El Cerrito High School,37.91591,-122.30514,5,487 - grand theft
+Korematsu Middle School,37.91599,-122.29687,2,487 - grand theft
+Harding Elementary School,37.90164,-122.30161,12,487 - grand theft
+Madera Elementary School,37.92216,-122.28563,1,487 - grand theft
+El Cerrito Library,37.90258,-122.30623,2,487 - grand theft
+El Cerrito Plaza BART,37.90295,-122.29923,3,459r - residential burglary
+El Cerrito Del Norte BART,37.92505,-122.31676,0,459r - residential burglary
+Castro Park Pickleball,37.91878,-122.30319,2,459r - residential burglary
+El Cerrito Community Center,37.9156,-122.30181,0,459r - residential burglary
+El Cerrito High School,37.91591,-122.30514,6,459r - residential burglary
+Korematsu Middle School,37.91599,-122.29687,2,459r - residential burglary
+Harding Elementary School,37.90164,-122.30161,1,459r - residential burglary
+Madera Elementary School,37.92216,-122.28563,2,459r - residential burglary
+El Cerrito Library,37.90258,-122.30623,7,459r - residential burglary
+El Cerrito Plaza BART,37.90295,-122.29923,1,314 - indecent exposure
+El Cerrito Del Norte BART,37.92505,-122.31676,0,314 - indecent exposure
+Castro Park Pickleball,37.91878,-122.30319,0,314 - indecent exposure
+El Cerrito Community Center,37.9156,-122.30181,0,314 - indecent exposure
+El Cerrito High School,37.91591,-122.30514,0,314 - indecent exposure
+Korematsu Middle School,37.91599,-122.29687,0,314 - indecent exposure
+Harding Elementary School,37.90164,-122.30161,8,314 - indecent exposure
+Madera Elementary School,37.92216,-122.28563,0,314 - indecent exposure
+El Cerrito Library,37.90258,-122.30623,0,314 - indecent exposure
+El Cerrito Plaza BART,37.90295,-122.29923,0,10852 - vehcile parts theft
+El Cerrito Del Norte BART,37.92505,-122.31676,0,10852 - vehcile parts theft
+Castro Park Pickleball,37.91878,-122.30319,4,10852 - vehcile parts theft
+El Cerrito Community Center,37.9156,-122.30181,1,10852 - vehcile parts theft
+El Cerrito High School,37.91591,-122.30514,1,10852 - vehcile parts theft
+Korematsu Middle School,37.91599,-122.29687,3,10852 - vehcile parts theft
+Harding Elementary School,37.90164,-122.30161,3,10852 - vehcile parts theft
+Madera Elementary School,37.92216,-122.28563,1,10852 - vehcile parts theft
+El Cerrito Library,37.90258,-122.30623,5,10852 - vehcile parts theft
+El Cerrito Plaza BART,37.90295,-122.29923,1,sfrmc - shots fired
+El Cerrito Del Norte BART,37.92505,-122.31676,0,sfrmc - shots fired
+Castro Park Pickleball,37.91878,-122.30319,1,sfrmc - shots fired
+El Cerrito Community Center,37.9156,-122.30181,0,sfrmc - shots fired
+El Cerrito High School,37.91591,-122.30514,1,sfrmc - shots fired
+Korematsu Middle School,37.91599,-122.29687,0,sfrmc - shots fired
+Harding Elementary School,37.90164,-122.30161,3,sfrmc - shots fired
+Madera Elementary School,37.92216,-122.28563,0,sfrmc - shots fired
+El Cerrito Library,37.90258,-122.30623,1,sfrmc - shots fired
+El Cerrito Plaza BART,37.90295,-122.29923,0,mgun - person with a gun
+El Cerrito Del Norte BART,37.92505,-122.31676,0,mgun - person with a gun
+Castro Park Pickleball,37.91878,-122.30319,0,mgun - person with a gun
+El Cerrito Community Center,37.9156,-122.30181,1,mgun - person with a gun
+El Cerrito High School,37.91591,-122.30514,2,mgun - person with a gun
+Korematsu Middle School,37.91599,-122.29687,0,mgun - person with a gun
+Harding Elementary School,37.90164,-122.30161,1,mgun - person with a gun
+Madera Elementary School,37.92216,-122.28563,0,mgun - person with a gun
+El Cerrito Library,37.90258,-122.30623,0,mgun - person with a gun
+El Cerrito Plaza BART,37.90295,-122.29923,0,stalk - stalking
+El Cerrito Del Norte BART,37.92505,-122.31676,0,stalk - stalking
+Castro Park Pickleball,37.91878,-122.30319,0,stalk - stalking
+El Cerrito Community Center,37.9156,-122.30181,0,stalk - stalking
+El Cerrito High School,37.91591,-122.30514,0,stalk - stalking
+Korematsu Middle School,37.91599,-122.29687,0,stalk - stalking
+Harding Elementary School,37.90164,-122.30161,2,stalk - stalking
+Madera Elementary School,37.92216,-122.28563,0,stalk - stalking
+El Cerrito Library,37.90258,-122.30623,0,stalk - stalking
+El Cerrito Plaza BART,37.90295,-122.29923,0,261 - rape
+El Cerrito Del Norte BART,37.92505,-122.31676,0,261 - rape
+Castro Park Pickleball,37.91878,-122.30319,0,261 - rape
+El Cerrito Community Center,37.9156,-122.30181,0,261 - rape
+El Cerrito High School,37.91591,-122.30514,0,261 - rape
+Korematsu Middle School,37.91599,-122.29687,0,261 - rape
+Harding Elementary School,37.90164,-122.30161,0,261 - rape
+Madera Elementary School,37.92216,-122.28563,0,261 - rape
+El Cerrito Library,37.90258,-122.30623,0,261 - rape
