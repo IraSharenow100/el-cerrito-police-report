@@ -2,12 +2,10 @@ unique.df_usable.call_for_service.
 unwant - unwanted person
 415 - disturbance
 488 - petty theft
-1066 - suspicious person
 parker - parking violation
 1154 - suspicious vehicle
 459a - auto burglary
 10851 - motor vehicle theft
-suscir - suspicious circumstances event
 594 - vandalism
 1053 - person down
 243a - assault / battery
@@ -15,7 +13,6 @@ suscir - suspicious circumstances event
 211 - robbery
 417 - brandishing
 1179 - accident w/ medical routed
-374b - illegal dumping
 422 - criminal threats
 314 - indecent exposure
 hs - narcotics use/possession

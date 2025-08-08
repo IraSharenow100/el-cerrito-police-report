@@ -57,7 +57,7 @@ df <- df %>%
   mutate(call_for_service = str_trim(tolower(call_for_service)))
 
 # 💾 Save cleaned file
-write_csv(df, "el-cerrito-police-cleaned-r.csv")
+# write_csv(df, "el-cerrito-police-cleaned-r.csv")
 
 ####################
 # Basic Summary Stats
@@ -83,7 +83,7 @@ df_yearly <- df %>%
   count(year, name = "incident_count") %>%
   arrange(year)
 
-print(df_yearly)
+# print(df_yearly)
 
 # 3. Number of incidents by month (aggregated across all years)
 df_monthly <- df %>%
@@ -103,7 +103,7 @@ df_type_summary <- df %>%
   mutate(percent = round((count / sum(count)) * 100, 1))  # % of total
 
 print(df_type_summary, n = 50)
-write_csv(df_type_summary, "el-cerrito-police-counts.csv")
+# write_csv(df_type_summary, "el-cerrito-police-counts.csv")
 
 types_df <- function(data = df, call_type) {
   data %>%
@@ -371,6 +371,8 @@ landmarks_el_cerrito <- tibble::tribble(
   "Madera Elementary School", 37.92216, -122.28563,
   "El Cerrito Library",       37.90258, -122.30623
 )
+
+
 
 # Step 2: Run the proximity function using your filtered incident data
 results_500ft <- count_incidents_near_locations(
@@ -1206,7 +1208,15 @@ ggplot() +
 
 # save work
 
-df
-df_filtered
-dim(df_filtered_clean)
-dim(df_filtered_clean_updated)
+# Save as CSV files
+write.csv(df, "df.csv", row.names = FALSE)
+write.csv(df_filtered, "df_filtered.csv", row.names = FALSE)
+write.csv(df_filtered_clean, "df_filtered_clean.csv", row.names = FALSE)
+write.csv(df_filtered_clean_updated, "df_filtered_clean_updated.csv", row.names = FALSE)
+
+# Save as RDS files
+saveRDS(df, "df.rds")
+saveRDS(df_filtered, "df_filtered.rds")
+saveRDS(df_filtered_clean, "df_filtered_clean.rds")
+saveRDS(df_filtered_clean_updated, "df_filtered_clean_updated.rds")
+

@@ -1,0 +1,435 @@
+---
+title: "El Cerrito Police Incident Analysis — Starter + Globals"
+author: "Ira Sharenow"
+date: "August 7, 2025"
+output: 
+  word_document:
+    number_sections: false
+    fig_caption: true
+---
+
+```{r setup, include=FALSE}
+# Global settings
+knitr::opts_chunk$set(
+  echo = FALSE,
+  warning = FALSE,
+  message = FALSE,
+  fig.align = "center",
+  fig.width = 8,
+  fig.height = 5
+)
+```
+
+# 1) Libraries
+```{r libraries}
+# Use the same library set as the fire project
+library(readxl)
+library(dplyr)
+library(lubridate)
+library(ggplot2)
+library(stringr)
+library(forcats)
+library(tidyr)
+library(flextable)
+library(scales)
+library(writexl)
+library(tidygeocoder)
+library(geosphere)
+library(ggmap)
+library(viridis)
+```
+
+# 1a) Global ggplot theme (charts & heat maps)
+```{r global-theme}
+# Consistent minimalist look across all charts (including heat maps)
+theme_set(
+  theme_minimal(base_size = 11) +
+    theme(
+      panel.grid = element_blank(),
+      plot.title = element_text(hjust = 0.5, face = "bold"),
+      plot.subtitle = element_text(hjust = 0.5)
+    )
+)
+```
+
+```{r global_flextable function}
+# Global Flextable Function (from fire project) — with minor safety tweaks
+table_fire_style <- function(tbl,
+                             label_map,
+                             currency_cols = NULL,
+                             percent_cols = NULL,
+                             color_col = NULL,
+                             color_domain = NULL,
+                             caption = NULL,
+                             footer = NULL) {
+
+  ft <- flextable(tbl) %>%
+    set_header_labels(values = label_map)
+
+  # Support YEAR or year
+  year_col <- c("YEAR","year")[c("YEAR","year") %in% names(tbl)][1]
+  if (!is.null(year_col)) {
+    if (is.numeric(tbl[[year_col]])) {
+      ft <- ft %>% colformat_num(j = year_col, digits = 0, big.mark = "")
+    } else {
+      ft <- ft %>% colformat_char(j = year_col)
+    }
+  }
+
+  # Only format columns that exist
+  if (!is.null(currency_cols)) {
+    cc <- intersect(currency_cols, names(tbl))
+    if (length(cc)) ft <- ft %>% colformat_num(j = cc, digits = 0, big.mark = ",", prefix = "$")
+  }
+
+  if (!is.null(percent_cols)) {
+    pc <- intersect(percent_cols, names(tbl))
+    if (length(pc)) ft <- ft %>% colformat_num(j = pc, digits = 1, suffix = "%")
+  }
+
+  # Optional color emphasis on a numeric column
+  if (!is.null(color_col) && !is.null(color_domain) && color_col %in% names(tbl)) {
+    color_values <- tbl[[color_col]]
+    color_fn <- scales::col_numeric(palette = c("#FFCCCC", "#990000"), domain = color_domain)
+    color_vec <- ifelse(!is.na(color_values) & color_values > 0, color_fn(color_values), NA)
+    ft <- ft %>% color(j = color_col, color = color_vec)
+  }
+
+  ft %>%
+    autofit() %>%
+    theme_booktabs() %>%
+    align(align = "right", part = "body") %>%
+    align(align = "center", part = "header") %>%
+    bold(part = "header") %>%
+    fontsize(size = 11, part = "all") %>%
+    set_caption(caption) %>%
+    add_footer_lines(footer)
+}
+
+```
+
+```{r global-functions}
+# Global Charting Function (from fire project)
+# Bar chart (simple, readable labels)
+create_bar_chart <- function(data, x_var, y_var, title, x_label, y_label) {
+  ggplot(data, aes_string(x = x_var, y = y_var)) +
+    geom_col(fill = "steelblue") +
+    geom_text(aes_string(label = y_var), vjust = -0.3, size = 3.5) +
+    labs(title = title, x = x_label, y = y_label) +
+    theme_minimal() +
+    theme(
+      panel.grid = element_blank(),
+      plot.title = element_text(hjust = 0.5, face = "bold")
+    )
+}
+
+# Heat map (assumes data already has longitude/latitude)
+create_heat_map <- function(data, lon = "longitude", lat = "latitude",
+                            title = "Incident Density Heat Map",
+                            subtitle = NULL,
+                            bins = 40, alpha = 0.8) {
+  if (!all(c(lon, lat) %in% names(data))) {
+    return(ggplot() + annotate("text", x = 0, y = 0,
+                               label = sprintf("Missing columns: %s / %s", lon, lat),
+                               size = 4) + theme_void())
+  }
+  d <- data[!is.na(data[[lon]]) & !is.na(data[[lat]]), , drop = FALSE]
+  if (!nrow(d)) {
+    return(ggplot() + annotate("text", x = 0, y = 0,
+                               label = "No points with coordinates.", size = 4) +
+             theme_void())
+  }
+
+  ggplot() +
+    stat_density_2d(
+      data = d,
+      aes(x = .data[[lon]], y = .data[[lat]], fill = after_stat(level)),
+      geom = "polygon", contour = TRUE, alpha = alpha, bins = bins
+    ) +
+    scale_fill_viridis_c(name = "Incident Density") +
+    labs(title = title, subtitle = subtitle) +
+    theme_minimal() +
+    theme(
+      panel.grid = element_blank(),
+      axis.title = element_blank(),
+      axis.text = element_blank(),
+      axis.ticks = element_blank(),
+      plot.title = element_text(hjust = 0.5, face = "bold")
+    )
+}
+```
+
+
+```{r geocode_start}
+
+# Point directly to the file you produced after geocoding yesterday
+data_dir   <- "D:/Documents/Employment/2025 job search/Project 2025/el-cerrito-police-report/data/combined"
+active_csv <- file.path(data_dir, "el-cerrito-police-with-coords.csv")  # or "el-cerrito-police-usable-coords.csv"
+
+if (!file.exists(active_csv)) {
+  stop("Geocoded CSV not found at: ", active_csv)
+}
+
+df <- readr::read_csv(active_csv, show_col_types = FALSE)
+
+# If the file still has original headers, rename once; otherwise this is a no-op
+if ("Event Number" %in% names(df)) {
+  df <- dplyr::rename(
+    df,
+    event_number            = `Event Number`,
+    call_for_service        = `Call for Service`,
+    received_date           = `Received Date`,
+    first_unit_arrived_time = `First Unit Arrived Time`,
+    cleared_date            = `Cleared Date`,
+    address                 = `Address`
+  )
+}
+
+# Light clean (idempotent)
+df <- df |>
+  dplyr::distinct() |>
+  dplyr::filter(!is.na(event_number)) |>
+  dplyr::mutate(
+    call_for_service = stringr::str_trim(stringr::str_to_lower(call_for_service)),
+    address          = stringr::str_squish(address)
+  )
+
+# Parse dates if they are not already POSIXct
+if (!inherits(df$received_date, "POSIXt")) {
+  df <- df |>
+    dplyr::mutate(
+      received_date = lubridate::parse_date_time(received_date, orders = c("mdy HM", "mdy HMS", "Y-m-d H:M:S")),
+      first_unit_arrived_time = lubridate::parse_date_time(first_unit_arrived_time, orders = c("mdy HM", "mdy HMS", "Y-m-d H:M:S")),
+      cleared_date = lubridate::parse_date_time(cleared_date, orders = c("mdy HM", "mdy HMS", "Y-m-d H:M:S"))
+    )
+}
+
+```
+
+
+## Introduction
+
+First I would like to thank the El Cerrito Police Department for providing police incident data from January 1, 2019-June 30, 2025. But be sure to read the technical note to see how I cleaned the data.
+
+I have two goals for this project. One goal is to provide standard summary statistics such as number of incidents, seasonality, and so forth. The other goal is to focus in on specific landmarks. In particular, El Cerrito residents are debating whether to spend millions of dollars per year to move the library t an area near El Cerrito Plaza. Main points have been made on both sides of the issue. This report looks at police incident data, which no one else ha looked at so far.
+
+I many case, there will be a chart and a table accompanied by a small amount of text.
+
+
+\newpage
+
+All data hotspots
+
+```{r chart1_heatmap}
+# Purpose: First heatmap (2017–2025) using the saved, cleaned dataset and Excel landmarks.
+#          Uses df_filtered_clean_updated consistently (no re-defining df).
+
+# 1) Load cleaned incidents
+df_filtered_clean_updated <- readRDS(
+  "D:/Documents/Employment/2025 job search/Project 2025/el-cerrito-police-report/data/combined/df_filtered_clean_updated.rds"
+)
+
+# Ensure received_date is parsed (no-op if already POSIXt)
+if (!inherits(df_filtered_clean_updated$received_date, "POSIXt")) {
+  df_filtered_clean_updated <- df_filtered_clean_updated |>
+    dplyr::mutate(received_date = lubridate::parse_date_time(
+      received_date, orders = c("mdy HM","mdy HMS","Y-m-d H:M:S")
+    ))
+}
+
+# 2) Read landmarks from Excel (authoritative coordinates)
+lm_path <- "D:/Documents/Employment/2025 job search/Project 2025/el-cerrito-police-report/data/combined/landmark lat and long.xlsx"
+lm_raw  <- readxl::read_excel(lm_path)
+
+if ("Landmark Name" %in% names(lm_raw)) {
+  landmarks <- lm_raw |>
+    dplyr::rename(name = `Landmark Name`, lat = Latitude, lon = Longitude)
+} else if ("Landmark" %in% names(lm_raw)) {
+  landmarks <- lm_raw |>
+    dplyr::rename(name = Landmark, lat = Latitude, lon = Longitude)
+} else {
+  stop("Landmark file must include either 'Landmark Name' or 'Landmark' plus 'Latitude' and 'Longitude'.")
+}
+
+# Label tweak requested
+landmarks <- landmarks |>
+  dplyr::mutate(
+    name = stringr::str_replace(name, "^Harding Elementary$", "Harding")
+  )
+
+# Default label offsets if not present
+if (!"hjust" %in% names(landmarks)) landmarks$hjust <- -0.1
+if (!"vjust" %in% names(landmarks)) landmarks$vjust <- -0.5
+
+# 3) Filter incidents: 2017–2025, valid coordinates, drop flagged if present
+heat_data <- df_filtered_clean_updated |>
+  dplyr::filter(!is.na(received_date)) |>
+  dplyr::filter(dplyr::between(lubridate::year(received_date), 2017, 2025)) |>
+  dplyr::filter(!is.na(latitude), !is.na(longitude))
+
+if ("BAD_LATLON_FLAG" %in% names(heat_data)) {
+  heat_data <- dplyr::filter(heat_data, !BAD_LATLON_FLAG)
+}
+
+# 4) Plot heat map
+ggplot2::ggplot() +
+  ggplot2::stat_density_2d(
+    data = heat_data,
+    ggplot2::aes(x = longitude, y = latitude, fill = after_stat(level)),
+    geom = "polygon", contour = TRUE, alpha = 0.8, bins = 40
+  ) +
+  ggplot2::scale_fill_gradient(
+    low = "lightgreen", high = "red", name = "Incident Density"
+  ) +
+  ggplot2::geom_point(
+    data = landmarks,
+    ggplot2::aes(x = lon, y = lat),
+    color = "black", size = 3, shape = 21, fill = "white"
+  ) +
+  ggplot2::geom_text(
+    data = landmarks,
+    ggplot2::aes(x = lon, y = lat, label = name, hjust = hjust, vjust = vjust),
+    size = 2.5, fontface = "bold"
+  ) +
+  ggplot2::labs(
+    title = "El Cerrito Police Incidents – Heat Map",
+    subtitle = "All incidents with coordinates (2017–2025)"
+  ) +
+  ggplot2::coord_fixed() +
+  ggplot2::theme_minimal() +
+  ggplot2::theme(
+    panel.grid = ggplot2::element_blank(),
+    axis.title = ggplot2::element_blank(),
+    axis.text = ggplot2::element_blank(),
+    axis.ticks = ggplot2::element_blank(),
+    plot.title = ggplot2::element_text(hjust = 0.5, face = "bold"),
+    plot.subtitle = ggplot2::element_text(hjust = 0.5)
+  )
+```
+
+\newpage
+
+
+```{r table1}
+# Purpose: Flextable of incident counts within 500 ft of each landmark (rows = landmarks), sorted desc.
+
+# Guards
+stopifnot(all(c("longitude","latitude") %in% names(df_filtered_clean_updated)))
+stopifnot(exists("landmarks"))
+stopifnot(all(c("name","lat","lon") %in% names(landmarks)))
+
+# Prepare incident coordinates once
+inc_coords <- df_filtered_clean_updated |>
+  dplyr::filter(!is.na(longitude), !is.na(latitude)) |>
+  dplyr::select(longitude, latitude) |>
+  as.matrix()
+
+radius_m <- 500 * 0.3048
+
+# Fast counter for one landmark
+count_near <- function(lat, lon) {
+  sum(geosphere::distHaversine(inc_coords, c(lon, lat)) <= radius_m)
+}
+
+# Build the 2-column table
+landmark_counts <- landmarks |>
+  dplyr::mutate(
+    `Incident Count (within 500 ft)` = vapply(
+      seq_len(n()),
+      function(i) count_near(lat[i], lon[i]),
+      integer(1)
+    )
+  ) |>
+  dplyr::transmute(
+    Landmark = name,
+    `Incident Count (within 500 ft)`
+  ) |>
+  dplyr::arrange(dplyr::desc(`Incident Count (within 500 ft)`))
+
+# Flextable
+flextable::flextable(landmark_counts) |>
+  flextable::autofit()
+```
+
+
+\newpage
+
+
+```{r distances}
+# Purpose: Create full data frames of incidents within 500 ft of:
+#          (1) El Cerrito Plaza BART, and (2) New Library; then write each to CSV.
+
+# ---- Ensure cleaned incidents are available (no re-geocoding) ----
+if (!exists("df_filtered_clean_updated")) {
+  df_filtered_clean_updated <- readRDS(
+    "D:/Documents/Employment/2025 job search/Project 2025/el-cerrito-police-report/data/combined/df_filtered_clean_updated.rds"
+  )
+}
+
+# ---- Ensure landmarks are available (from your Excel with correct coordinates) ----
+if (!exists("landmarks")) {
+  lm_path <- "D:/Documents/Employment/2025 job search/Project 2025/el-cerrito-police-report/data/combined/landmark lat and long.xlsx"
+  lm_raw  <- readxl::read_excel(lm_path)
+
+  if ("Landmark Name" %in% names(lm_raw)) {
+    landmarks <- lm_raw |>
+      dplyr::rename(name = `Landmark Name`, lat = Latitude, lon = Longitude)
+  } else if ("Landmark" %in% names(lm_raw)) {
+    landmarks <- lm_raw |>
+      dplyr::rename(name = Landmark, lat = Latitude, lon = Longitude)
+  } else {
+    stop("Landmark file must include either 'Landmark Name' or 'Landmark' plus 'Latitude' and 'Longitude'.")
+  }
+}
+
+# ---- Helpers ----
+ft_to_m <- function(ft) ft * 0.3048
+
+# Subset incidents within a radius (feet) of a single center point
+incidents_within_radius <- function(data, center_lat, center_lon, radius_ft = 500) {
+  valid <- data |>
+    dplyr::filter(!is.na(latitude), !is.na(longitude))
+
+  if (nrow(valid) == 0) return(valid[0, ])
+
+  # Vectorized Haversine distance (meters) from each incident to the center
+  d_m <- geosphere::distHaversine(
+    matrix(c(valid$longitude, valid$latitude), ncol = 2),
+    c(center_lon, center_lat)
+  )
+
+  valid |>
+    dplyr::mutate(distance_m = d_m,
+                  distance_ft = distance_m / 0.3048) |>
+    dplyr::filter(distance_m <= ft_to_m(radius_ft)) |>
+    dplyr::arrange(distance_m)
+}
+
+# Find one landmark by a name pattern (case-insensitive)
+get_landmark_coords <- function(name_pattern) {
+  idx <- grep(name_pattern, landmarks$name, ignore.case = TRUE)
+  if (length(idx) == 0) {
+    stop(paste0(
+      "Landmark matching '", name_pattern, "' not found.\nAvailable names:\n- ",
+      paste(landmarks$name, collapse = "\n- ")
+    ))
+  }
+  if (length(idx) > 1) {
+    warning("Multiple landmarks matched '", name_pattern, "'. Using first: ", landmarks$name[idx[1]])
+  }
+  landmarks[idx[1], c("name", "lat", "lon")]
+}
+
+# ---- Pull Plaza BART and New Library landmarks by name ----
+plaza_row  <- get_landmark_coords("plaza.*bart|el cerrito plaza bart|^plaza bart$")
+newlib_row <- get_landmark_coords("new.*library|proposed.*library|ec.*library.*proposed|new library")
+
+# ---- Build the two data frames (all rows kept) ----
+plaza_500ft_df  <- incidents_within_radius(df_filtered_clean_updated, plaza_row$lat,  plaza_row$lon,  500)
+newlib_500ft_df <- incidents_within_radius(df_filtered_clean_updated, newlib_row$lat, newlib_row$lon, 500)
+
+# ---- Write to CSV (same combined data directory) ----
+out_dir <- "D:/Documents/Employment/2025 job search/Project 2025/el-cerrito-police-report/data/combined"
+readr::write_csv(plaza_500ft_df,  file.path(out_dir, "el_cerrito_plaza_bart_within_500ft.csv"))
+readr::write_csv(newlib_500ft_df, file.path(out_dir, "new_library_within_500ft.csv"))
+```
