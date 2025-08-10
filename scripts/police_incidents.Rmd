@@ -433,3 +433,59 @@ out_dir <- "D:/Documents/Employment/2025 job search/Project 2025/el-cerrito-poli
 readr::write_csv(plaza_500ft_df,  file.path(out_dir, "el_cerrito_plaza_bart_within_500ft.csv"))
 readr::write_csv(newlib_500ft_df, file.path(out_dir, "new_library_within_500ft.csv"))
 ```
+
+
+```{r table_library_incident_types}
+# Purpose: Compare incident counts (by type) for New Library site vs Current Library site (within 500 ft)
+
+# --- Helpers (should already exist in your RMD) ---
+ft_to_m <- function(ft) ft * 0.3048
+
+incidents_within_radius <- function(data, center_lat, center_lon, radius_ft = 500) {
+  valid <- data %>%
+    filter(!is.na(latitude), !is.na(longitude))
+  
+  if (nrow(valid) == 0) return(valid[0, ])
+  
+  d_m <- geosphere::distHaversine(
+    matrix(c(valid$longitude, valid$latitude), ncol = 2),
+    c(center_lon, center_lat)
+  )
+  
+  valid %>%
+    mutate(distance_m = d_m) %>%
+    filter(distance_m <= ft_to_m(radius_ft))
+}
+
+get_landmark_coords <- function(name_pattern) {
+  idx <- grep(name_pattern, landmarks$name, ignore.case = TRUE)
+  if (length(idx) == 0) {
+    stop(paste0("Landmark matching '", name_pattern, "' not found."))
+  }
+  landmarks[idx[1], c("name", "lat", "lon")]
+}
+
+# --- Landmark coordinates ---
+newlib_row     <- get_landmark_coords("new.*library|proposed.*library|ec.*library.*proposed|new library")
+currentlib_row <- get_landmark_coords("current.*library|el cerrito library|stockton")
+
+# --- Incidents for each site ---
+newlib_df     <- incidents_within_radius(df_filtered_clean_updated, newlib_row$lat, newlib_row$lon, 500)
+currentlib_df <- incidents_within_radius(df_filtered_clean_updated, currentlib_row$lat, currentlib_row$lon, 500)
+
+# --- Summary counts ---
+tbl_library_compare <- full_join(
+  newlib_df %>%
+    count(call_for_service, name = "New Library Site"),
+  currentlib_df %>%
+    count(call_for_service, name = "Current Library Site"),
+  by = "call_for_service"
+) %>%
+  replace_na(list(`New Library Site` = 0, `Current Library Site` = 0)) %>%
+  arrange(desc(`New Library Site`))
+
+# --- Flextable output ---
+flextable(tbl_library_compare) %>%
+  autofit() %>%
+  set_caption("Incident Counts by Type — New vs Current Library Sites (within 500 ft)")
+```

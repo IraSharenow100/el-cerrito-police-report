@@ -1,0 +1,832 @@
+---
+title: "El Cerrito Police Incident Analysis — Starter + Globals"
+author: "Ira Sharenow"
+date: "August 7, 2025"
+output: 
+  word_document:
+    number_sections: false
+    fig_caption: true
+---
+
+```{r setup, include=FALSE}
+# Global settings
+knitr::opts_chunk$set(
+  echo = FALSE,
+  warning = FALSE,
+  message = FALSE,
+  fig.align = "center",
+  fig.width = 8,
+  fig.height = 5
+)
+```
+
+
+```{r libraries}
+# Use the same library set as the fire project
+library(readxl)
+library(dplyr)
+library(lubridate)
+library(ggplot2)
+library(stringr)
+library(forcats)
+library(tidyr)
+library(flextable)
+library(scales)
+library(writexl)
+library(tidygeocoder)
+library(geosphere)
+library(ggmap)
+library(viridis)
+```
+
+
+```{r global-theme}
+# Consistent minimalist look across all charts (including heat maps)
+theme_set(
+  theme_minimal(base_size = 11) +
+    theme(
+      panel.grid = element_blank(),
+      plot.title = element_text(hjust = 0.5, face = "bold"),
+      plot.subtitle = element_text(hjust = 0.5)
+    )
+)
+```
+
+```{r global_flextable function}
+# Global Flextable Function (from fire project) — with minor safety tweaks
+table_fire_style <- function(tbl,
+                             label_map,
+                             currency_cols = NULL,
+                             percent_cols = NULL,
+                             color_col = NULL,
+                             color_domain = NULL,
+                             caption = NULL,
+                             footer = NULL) {
+
+  ft <- flextable(tbl) %>%
+    set_header_labels(values = label_map)
+
+  # Support YEAR or year
+  year_col <- c("YEAR","year")[c("YEAR","year") %in% names(tbl)][1]
+  if (!is.null(year_col)) {
+    if (is.numeric(tbl[[year_col]])) {
+      ft <- ft %>% colformat_num(j = year_col, digits = 0, big.mark = "")
+    } else {
+      ft <- ft %>% colformat_char(j = year_col)
+    }
+  }
+
+  # Only format columns that exist
+  if (!is.null(currency_cols)) {
+    cc <- intersect(currency_cols, names(tbl))
+    if (length(cc)) ft <- ft %>% colformat_num(j = cc, digits = 0, big.mark = ",", prefix = "$")
+  }
+
+  if (!is.null(percent_cols)) {
+    pc <- intersect(percent_cols, names(tbl))
+    if (length(pc)) ft <- ft %>% colformat_num(j = pc, digits = 1, suffix = "%")
+  }
+
+  # Optional color emphasis on a numeric column
+  if (!is.null(color_col) && !is.null(color_domain) && color_col %in% names(tbl)) {
+    color_values <- tbl[[color_col]]
+    color_fn <- scales::col_numeric(palette = c("#FFCCCC", "#990000"), domain = color_domain)
+    color_vec <- ifelse(!is.na(color_values) & color_values > 0, color_fn(color_values), NA)
+    ft <- ft %>% color(j = color_col, color = color_vec)
+  }
+
+  ft %>%
+    autofit() %>%
+    theme_booktabs() %>%
+    align(align = "right", part = "body") %>%
+    align(align = "center", part = "header") %>%
+    bold(part = "header") %>%
+    fontsize(size = 11, part = "all") %>%
+    set_caption(caption) %>%
+    add_footer_lines(footer)
+}
+
+```
+
+```{r global-functions}
+# Global Charting Function (from fire project)
+# Bar chart (simple, readable labels)
+create_bar_chart <- function(data, x_var, y_var, title, x_label, y_label) {
+  ggplot(data, aes_string(x = x_var, y = y_var)) +
+    geom_col(fill = "steelblue") +
+    geom_text(aes_string(label = y_var), vjust = -0.3, size = 3.5) +
+    labs(title = title, x = x_label, y = y_label) +
+    theme_minimal() +
+    theme(
+      panel.grid = element_blank(),
+      plot.title = element_text(hjust = 0.5, face = "bold")
+    )
+}
+
+# Heat map (assumes data already has longitude/latitude)
+create_heat_map <- function(data, lon = "longitude", lat = "latitude",
+                            title = "Incident Density Heat Map",
+                            subtitle = NULL,
+                            bins = 40, alpha = 0.8) {
+  if (!all(c(lon, lat) %in% names(data))) {
+    return(ggplot() + annotate("text", x = 0, y = 0,
+                               label = sprintf("Missing columns: %s / %s", lon, lat),
+                               size = 4) + theme_void())
+  }
+  d <- data[!is.na(data[[lon]]) & !is.na(data[[lat]]), , drop = FALSE]
+  if (!nrow(d)) {
+    return(ggplot() + annotate("text", x = 0, y = 0,
+                               label = "No points with coordinates.", size = 4) +
+             theme_void())
+  }
+
+  ggplot() +
+    stat_density_2d(
+      data = d,
+      aes(x = .data[[lon]], y = .data[[lat]], fill = after_stat(level)),
+      geom = "polygon", contour = TRUE, alpha = alpha, bins = bins
+    ) +
+    scale_fill_viridis_c(name = "Incident Density") +
+    labs(title = title, subtitle = subtitle) +
+    theme_minimal() +
+    theme(
+      panel.grid = element_blank(),
+      axis.title = element_blank(),
+      axis.text = element_blank(),
+      axis.ticks = element_blank(),
+      plot.title = element_text(hjust = 0.5, face = "bold")
+    )
+}
+```
+
+
+```{r geocode_start}
+
+# Point directly to the file you produced after geocoding yesterday
+data_dir   <- "D:/Documents/Employment/2025 job search/Project 2025/el-cerrito-police-report/data/combined"
+active_csv <- file.path(data_dir, "el-cerrito-police-with-coords.csv")  # or "el-cerrito-police-usable-coords.csv"
+
+if (!file.exists(active_csv)) {
+  stop("Geocoded CSV not found at: ", active_csv)
+}
+
+df <- readr::read_csv(active_csv, show_col_types = FALSE)
+
+# If the file still has original headers, rename once; otherwise this is a no-op
+if ("Event Number" %in% names(df)) {
+  df <- dplyr::rename(
+    df,
+    event_number            = `Event Number`,
+    call_for_service        = `Call for Service`,
+    received_date           = `Received Date`,
+    first_unit_arrived_time = `First Unit Arrived Time`,
+    cleared_date            = `Cleared Date`,
+    address                 = `Address`
+  )
+}
+
+# Light clean (idempotent)
+df <- df |>
+  dplyr::distinct() |>
+  dplyr::filter(!is.na(event_number)) |>
+  dplyr::mutate(
+    call_for_service = stringr::str_trim(stringr::str_to_lower(call_for_service)),
+    address          = stringr::str_squish(address)
+  )
+
+# Parse dates if they are not already POSIXct
+if (!inherits(df$received_date, "POSIXt")) {
+  df <- df |>
+    dplyr::mutate(
+      received_date = lubridate::parse_date_time(received_date, orders = c("mdy HM", "mdy HMS", "Y-m-d H:M:S")),
+      first_unit_arrived_time = lubridate::parse_date_time(first_unit_arrived_time, orders = c("mdy HM", "mdy HMS", "Y-m-d H:M:S")),
+      cleared_date = lubridate::parse_date_time(cleared_date, orders = c("mdy HM", "mdy HMS", "Y-m-d H:M:S"))
+    )
+}
+
+```
+
+
+## Introduction
+
+First I would like to thank the El Cerrito Police Department for providing police incident data from January 1, 2019-June 30, 2025. But be sure to read the technical note to see how I cleaned the data.
+
+I have two goals for this project. One goal is to provide standard summary statistics such as number of incidents, seasonality, and so forth. The other goal is to focus in on specific landmarks. In particular, El Cerrito residents are debating whether to spend millions of dollars per year to move the library t an area near El Cerrito Plaza. Main points have been made on both sides of the issue. This report looks at police incident data, which no one else ha looked at so far.
+
+I many case, there will be a chart and a table accompanied by a small amount of text.
+
+
+\newpage
+
+All data hotspots
+
+\newpage
+
+
+
+```{r read_data}
+# Purpose: Read cleaned incidents, then filter by updated call_for_service list.
+# Keeps the SAME object name: df_filtered_clean_updated
+
+# 1) Read your cleaned/geocoded dataset (already saved previously)
+df_filtered_clean_updated <- readRDS(
+  "D:/Documents/Employment/2025 job search/Project 2025/el-cerrito-police-report/data/combined/df_filtered_clean_updated.rds"
+)
+
+# 2) Read the updated list of incident types
+types_path <- "D:/Documents/Employment/2025 job search/Project 2025/el-cerrito-police-report/data/combined/types of incidents filtered.csv"
+incident_types_raw <- readr::read_csv(types_path, show_col_types = FALSE)
+
+# Use the first column as the list (keeps it simple). Make it lower/trim to match your main data cleaning.
+incident_types <- incident_types_raw[[1]] |>
+  as.character() |>
+  stringr::str_trim() |>
+  stringr::str_to_lower() |>
+  unique()
+
+# 3) Normalize call_for_service in the main data and filter IN PLACE
+df_filtered_clean_updated <- df_filtered_clean_updated |>
+  dplyr::mutate(call_for_service = stringr::str_to_lower(stringr::str_trim(call_for_service))) |>
+  dplyr::filter(!is.na(call_for_service), call_for_service %in% incident_types)
+```
+
+
+```{r chart1_heatmap_total_incidents}
+# Purpose: First heatmap (2017–2025) using the filtered df_filtered_clean_updated and Excel landmarks.
+
+# Ensure received_date is POSIXct if we’re filtering by year
+if (!inherits(df_filtered_clean_updated$received_date, "POSIXt")) {
+  df_filtered_clean_updated <- df_filtered_clean_updated %>%
+    dplyr::mutate(received_date = lubridate::parse_date_time(
+      received_date, orders = c("mdy HM","mdy HMS","Y-m-d H:M:S")
+    ))
+}
+
+# --- Landmarks: read Excel and rename columns in a straightforward way ---
+lm_path <- "D:/Documents/Employment/2025 job search/Project 2025/el-cerrito-police-report/data/combined/landmark lat and long.xlsx"
+lm_raw  <- readxl::read_excel(lm_path)
+
+name_col <- intersect(c("Landmark Name", "Landmark"), names(lm_raw))[1]
+if (is.na(name_col)) {
+  stop("Landmark file must include either 'Landmark Name' or 'Landmark' plus 'Latitude' and 'Longitude'.")
+}
+
+landmarks <- lm_raw %>%
+  dplyr::rename(
+    name = !!name_col,
+    lat  = Latitude,
+    lon  = Longitude
+  ) %>%
+  # Apply label tweaks for annotations
+  dplyr::mutate(
+    name = name %>%
+      stringr::str_replace_all("\\bEl Cerrito\\b", "EC") %>%     # e.g., "El Cerrito Library" -> "EC Library"
+      stringr::str_replace("^Harding Elementary$", "Harding") %>% # exact match
+      stringr::str_replace("^Madera Elementary School$", "Madera")
+  )
+
+# Default label offsets if they don't exist
+if (!"hjust" %in% names(landmarks)) landmarks$hjust <- -0.1
+if (!"vjust" %in% names(landmarks)) landmarks$vjust <- -0.5
+
+# Filter incidents for the period and keep only rows with coords; drop BAD_LATLON_FLAG if present
+heat_data <- df_filtered_clean_updated %>%
+  dplyr::filter(!is.na(received_date)) %>%
+  dplyr::filter(dplyr::between(lubridate::year(received_date), 2017, 2025)) %>%
+  dplyr::filter(!is.na(latitude), !is.na(longitude))
+
+if ("BAD_LATLON_FLAG" %in% names(heat_data)) {
+  heat_data <- dplyr::filter(heat_data, !BAD_LATLON_FLAG)
+}
+
+# Heat map
+ggplot2::ggplot() +
+  ggplot2::stat_density_2d(
+    data = heat_data,
+    ggplot2::aes(x = longitude, y = latitude, fill = after_stat(level)),
+    geom = "polygon", contour = TRUE, alpha = 0.8, bins = 40
+  ) +
+  ggplot2::scale_fill_gradient(low = "lightgreen", high = "red", name = "Incident Density") +
+  ggplot2::geom_point(
+    data = landmarks,
+    ggplot2::aes(x = lon, y = lat),
+    color = "black", size = 3, shape = 21, fill = "white"
+  ) +
+  ggplot2::geom_text(
+    data = landmarks,
+    ggplot2::aes(x = lon, y = lat, label = name, hjust = hjust, vjust = vjust),
+    size = 2.5, fontface = "bold"
+  ) +
+  ggplot2::labs(
+    title = "El Cerrito Police Incidents – Heat Map",
+    subtitle = "Filtered incident categories with coordinates (2017–2025)"
+  ) +
+  ggplot2::coord_fixed() +
+  ggplot2::theme_minimal() +
+  ggplot2::theme(
+    panel.grid = ggplot2::element_blank(),
+    axis.title = ggplot2::element_blank(),
+    axis.text = ggplot2::element_blank(),
+    axis.ticks = ggplot2::element_blank(),
+    plot.title = ggplot2::element_text(hjust = 0.5, face = "bold"),
+    plot.subtitle = ggplot2::element_text(hjust = 0.5)
+  )
+
+
+
+```
+
+\newpage
+
+
+```{r table1a_total_incidents}
+# Purpose: Flextable of incident counts within 500 ft of each landmark (rows = landmarks), sorted desc.
+
+# Guards
+stopifnot(all(c("longitude","latitude") %in% names(df_filtered_clean_updated)))
+stopifnot(exists("landmarks"))
+stopifnot(all(c("name","lat","lon") %in% names(landmarks)))
+
+# Prepare incident coordinates once
+inc_coords <- df_filtered_clean_updated |>
+  dplyr::filter(!is.na(longitude), !is.na(latitude)) |>
+  dplyr::select(longitude, latitude) |>
+  as.matrix()
+
+radius_m <- 500 * 0.3048
+
+# Fast counter for one landmark
+count_near <- function(lat, lon) {
+  sum(geosphere::distHaversine(inc_coords, c(lon, lat)) <= radius_m)
+}
+
+# Build the 2-column table
+landmark_counts <- landmarks |>
+  dplyr::mutate(
+    `Incident Count (within 500 ft)` = vapply(
+      seq_len(n()),
+      function(i) count_near(lat[i], lon[i]),
+      integer(1)
+    )
+  ) |>
+  dplyr::transmute(
+    Landmark = name,
+    `Incident Count (within 500 ft)`
+  ) |>
+  dplyr::arrange(dplyr::desc(`Incident Count (within 500 ft)`))
+
+# Flextable
+flextable::flextable(landmark_counts) |>
+  flextable::autofit()
+```
+
+
+
+
+\newpage
+```{r table1b_library_incident_types}
+# Purpose: Compare incident counts (by type) for New Library site vs Current Library site (within 500 ft)
+# Purpose: Compare incident counts (by type) for New Library site vs Current Library site (within 500 ft)
+
+# --- Helpers ---
+ft_to_m <- function(ft) ft * 0.3048
+
+incidents_within_radius <- function(data, center_lat, center_lon, radius_ft = 500) {
+  valid <- data %>% dplyr::filter(!is.na(latitude), !is.na(longitude))
+  if (nrow(valid) == 0) return(valid[0, ])
+  d_m <- geosphere::distHaversine(
+    matrix(c(valid$longitude, valid$latitude), ncol = 2),
+    c(center_lon, center_lat)
+  )
+  valid %>%
+    dplyr::mutate(distance_m = d_m) %>%
+    dplyr::filter(distance_m <= ft_to_m(radius_ft))
+}
+
+# Search helper: try both name_raw (if it exists) and name (the label-edited one)
+find_landmark <- function(patterns, landmarks_df) {
+  cols_to_search <- intersect(c("name_raw", "name"), names(landmarks_df))
+  if (length(cols_to_search) == 0) stop("Landmarks must have a 'name' column.")
+
+  for (pat in patterns) {
+    for (col in cols_to_search) {
+      idx <- grep(pat, landmarks_df[[col]], ignore.case = TRUE)
+      if (length(idx) >= 1) {
+        if (length(idx) > 1) {
+          message("Multiple landmarks matched '", pat, "' via column '", col, "'. Using: ", landmarks_df$name[idx[1]])
+        }
+        return(landmarks_df[idx[1], c("name", "lat", "lon"), drop = FALSE])
+      }
+    }
+  }
+
+  stop(
+    "Landmark not found for patterns: ",
+    paste(patterns, collapse = " | "),
+    "\nAvailable names:\n- ",
+    paste(landmarks_df[[cols_to_search[1]]], collapse = "\n- ")
+  )
+}
+
+# --- Get landmarks (patterns cover both EC and El Cerrito forms) ---
+newlib_patterns     <- c("new.*library", "proposed.*library", "plaza.*library", "ec.*plaza.*library")
+currentlib_patterns <- c("current.*library", "ec.*library", "el\\s*cerrito\\s*library", "stockton")
+
+newlib_row     <- find_landmark(newlib_patterns, landmarks)
+currentlib_row <- find_landmark(currentlib_patterns, landmarks)
+
+# --- Incidents for each site ---
+newlib_df     <- incidents_within_radius(df_filtered_clean_updated, newlib_row$lat, newlib_row$lon, 500)
+currentlib_df <- incidents_within_radius(df_filtered_clean_updated, currentlib_row$lat, currentlib_row$lon, 500)
+
+# --- Summary counts ---
+tbl_library_compare <- dplyr::full_join(
+  newlib_df %>% dplyr::count(call_for_service, name = "New Library Site"),
+  currentlib_df %>% dplyr::count(call_for_service, name = "Current Library Site"),
+  by = "call_for_service"
+) %>%
+  tidyr::replace_na(list(`New Library Site` = 0, `Current Library Site` = 0)) %>%
+  dplyr::arrange(dplyr::desc(`New Library Site`))
+
+# --- Flextable output ---
+flextable::flextable(tbl_library_compare) %>%
+  flextable::autofit() %>%
+  flextable::set_caption("Incident Counts by Type — New vs Current Library Sites (within 500 ft)")
+
+```
+
+\newpage
+
+
+```{r chart2_heatmap_car_incidents}
+# Purpose: Heat map of "car incidents" (full dataset filtered to specific codes).
+# Uses Excel landmarks with the same label tweaks (EC, Harding, Madera).
+
+# --- Define the car-related call_for_service codes (lowercased to match your data cleaning) ---
+car_codes <- c(
+  "459a - auto burglary",
+  "10851 - motor vehicle theft",
+  "10851r - recovered stolen vehicle",
+  "215 - car jacking",
+  "23110 - throwing objects at a vehicle",
+  "10852 - vehcile parts theft"   # (typo matches your dataset)
+)
+
+# --- Subset the full dataset to car incidents and valid coordinates ---
+car_df <- df_filtered_clean_updated %>%
+  dplyr::mutate(call_for_service = stringr::str_to_lower(stringr::str_trim(call_for_service))) %>%
+  dplyr::filter(call_for_service %in% car_codes) %>%
+  dplyr::filter(!is.na(latitude), !is.na(longitude))
+
+if ("BAD_LATLON_FLAG" %in% names(car_df)) {
+  car_df <- dplyr::filter(car_df, !BAD_LATLON_FLAG)
+}
+
+# --- Landmarks from Excel (authoritative) + label tweaks ---
+lm_path <- "D:/Documents/Employment/2025 job search/Project 2025/el-cerrito-police-report/data/combined/landmark lat and long.xlsx"
+lm_raw  <- readxl::read_excel(lm_path)
+
+name_col <- intersect(c("Landmark Name", "Landmark"), names(lm_raw))[1]
+if (is.na(name_col)) stop("Landmark file must include either 'Landmark Name' or 'Landmark' plus 'Latitude' and 'Longitude'.")
+
+landmarks <- lm_raw %>%
+  dplyr::rename(name = !!name_col, lat = Latitude, lon = Longitude) %>%
+  dplyr::mutate(
+    # label tweaks you requested
+    name = name |>
+      stringr::str_replace_all("\\bEl Cerrito\\b", "EC") |>
+      stringr::str_replace("^Harding Elementary$", "Harding") |>
+      stringr::str_replace("^Madera Elementary School$", "Madera")
+  )
+
+# Default label offsets if not present
+if (!"hjust" %in% names(landmarks)) landmarks$hjust <- -0.1
+if (!"vjust" %in% names(landmarks)) landmarks$vjust <- -0.5
+
+# --- Heat map ---
+ggplot2::ggplot() +
+  ggplot2::stat_density_2d(
+    data  = car_df,
+    ggplot2::aes(x = longitude, y = latitude, fill = after_stat(level)),
+    geom  = "polygon",
+    contour = TRUE,
+    alpha = 0.8,
+    bins  = 40
+  ) +
+  ggplot2::scale_fill_gradient(low = "lightgreen", high = "red", name = "Incident Density") +
+  ggplot2::geom_point(
+    data = landmarks,
+    ggplot2::aes(x = lon, y = lat),
+    color = "black", size = 3, shape = 21, fill = "white"
+  ) +
+  ggplot2::geom_text(
+    data = landmarks,
+    ggplot2::aes(x = lon, y = lat, label = name, hjust = hjust, vjust = vjust),
+    size = 2.5, fontface = "bold"
+  ) +
+  ggplot2::labs(
+    title = "Car Incidents — Heat Map",
+    subtitle = "459a, 10851, 10851r, 215, 23110, 10852 (full dataset)"
+  ) +
+  ggplot2::coord_fixed() +
+  ggplot2::theme_minimal() +
+  ggplot2::theme(
+    panel.grid   = ggplot2::element_blank(),
+    axis.title   = ggplot2::element_blank(),
+    axis.text    = ggplot2::element_blank(),
+    axis.ticks   = ggplot2::element_blank(),
+    plot.title   = ggplot2::element_text(hjust = 0.5, face = "bold"),
+    plot.subtitle= ggplot2::element_text(hjust = 0.5)
+  )
+
+```
+
+\newpage
+
+```{r table2_car_incidents}
+
+# Purpose: Flextable — counts of "car incidents" within 500 ft of each landmark, sorted descending.
+
+# Guard
+stopifnot(all(c("longitude","latitude") %in% names(df_filtered_clean_updated)))
+
+# Reuse the same car_df from the chart chunk; rebuild quickly if needed
+if (!exists("car_df")) {
+  car_codes <- c(
+    "459a - auto burglary",
+    "10851 - motor vehicle theft",
+    "10851r - recovered stolen vehicle",
+    "215 - car jacking",
+    "23110 - throwing objects at a vehicle",
+    "10852 - vehcile parts theft"
+  )
+  car_df <- df_filtered_clean_updated %>%
+    dplyr::mutate(call_for_service = stringr::str_to_lower(stringr::str_trim(call_for_service))) %>%
+    dplyr::filter(call_for_service %in% car_codes) %>%
+    dplyr::filter(!is.na(latitude), !is.na(longitude))
+  if ("BAD_LATLON_FLAG" %in% names(car_df)) car_df <- dplyr::filter(car_df, !BAD_LATLON_FLAG)
+}
+
+# Landmarks (same logic as the chart chunk; reuse if exists)
+if (!exists("landmarks")) {
+  lm_path <- "D:/Documents/Employment/2025 job search/Project 2025/el-cerrito-police-report/data/combined/landmark lat and long.xlsx"
+  lm_raw  <- readxl::read_excel(lm_path)
+  name_col <- intersect(c("Landmark Name", "Landmark"), names(lm_raw))[1]
+  if (is.na(name_col)) stop("Landmark file must include either 'Landmark Name' or 'Landmark' plus 'Latitude' and 'Longitude'.")
+  landmarks <- lm_raw %>%
+    dplyr::rename(name = !!name_col, lat = Latitude, lon = Longitude) %>%
+    dplyr::mutate(
+      name = name |>
+        stringr::str_replace_all("\\bEl Cerrito\\b", "EC") |>
+        stringr::str_replace("^Harding Elementary$", "Harding") |>
+        stringr::str_replace("^Madera Elementary School$", "Madera")
+    )
+  if (!"hjust" %in% names(landmarks)) landmarks$hjust <- -0.1
+  if (!"vjust" %in% names(landmarks)) landmarks$vjust <- -0.5
+}
+
+# Prepare matrix of incident coordinates for fast distance calc
+inc_coords <- as.matrix(car_df[, c("longitude","latitude")])
+
+# 500 ft in meters
+radius_m <- 500 * 0.3048
+
+# Count helper
+count_near <- function(lat, lon) {
+  if (!nrow(car_df)) return(0L)
+  sum(geosphere::distHaversine(inc_coords, c(lon, lat)) <= radius_m)
+}
+
+# Build table
+car_counts <- landmarks %>%
+  dplyr::mutate(
+    `Incidents within 500 ft` = vapply(seq_len(n()), function(i) count_near(lat[i], lon[i]), integer(1))
+  ) %>%
+  dplyr::transmute(Landmark = name, `Incidents within 500 ft`) %>%
+  dplyr::arrange(dplyr::desc(`Incidents within 500 ft`))
+
+# Simple flextable (no commas; just digits = 0)
+flextable::flextable(car_counts) %>%
+  flextable::colformat_num(j = "Incidents within 500 ft", digits = 0, big.mark = "") %>%
+  flextable::autofit() %>%
+  flextable::set_caption("Car Incidents within 500 ft of Each Landmark (descending)")
+
+```
+
+\newpage
+
+```{r chart3_line__total_incidents}
+# Purpose: Line chart of total incidents by year, with note for 2025 half-year.
+
+yearly_totals <- df_filtered_clean_updated |>
+  dplyr::filter(!is.na(received_date)) |>
+  dplyr::mutate(Year = lubridate::year(received_date)) |>
+  dplyr::count(Year, name = "Incidents")
+
+ggplot2::ggplot(yearly_totals, ggplot2::aes(x = Year, y = Incidents)) +
+  ggplot2::geom_line(linewidth = 1.2, color = "blue") +
+  ggplot2::geom_point(size = 2, color = "blue") +
+  ggplot2::geom_text(
+    data = subset(yearly_totals, Year == 2025),
+    aes(label = "Only six months of data"),
+    hjust = 1.2, vjust = -0.5, size = 3   # hjust > 1 moves text to the left
+  ) +
+  ggplot2::scale_x_continuous(breaks = yearly_totals$Year) +
+  ggplot2::labs(
+    title = "Total Incidents by Year",
+    x = "Year", y = "Incidents"
+  ) +
+  ggplot2::theme_minimal() +
+  ggplot2::theme(
+    panel.grid.minor = ggplot2::element_blank(),
+    plot.title = ggplot2::element_text(hjust = 0.5, face = "bold")
+  )
+```
+
+
+\newpage
+
+
+```{r table3_counts_by_year}
+
+# Purpose: Flextable of total incidents per year (with note for partial latest year).
+
+# Purpose: Flextable of total incidents per year, with a caption, and a footer note
+#          ONLY if the latest year is Jan–Jun. Year column has no thousands separators.
+
+library(dplyr)
+library(lubridate)
+library(flextable)
+
+# Recompute yearly counts (kept simple & self-contained)
+yearly_counts_tbl <- df_filtered_clean_updated %>%
+  filter(!is.na(received_date)) %>%
+  mutate(YEAR = year(received_date)) %>%
+  count(YEAR, name = "Incidents") %>%
+  arrange(YEAR)
+
+# Detect partial latest year (<= June)
+latest_year <- max(year(df_filtered_clean_updated$received_date), na.rm = TRUE)
+max_month_latest <- df_filtered_clean_updated %>%
+  filter(!is.na(received_date), year(received_date) == latest_year) %>%
+  summarise(m = max(month(received_date), na.rm = TRUE), .groups = "drop") %>%
+  pull(m)
+is_partial <- !is.na(max_month_latest) && max_month_latest <= 6
+
+# Build flextable
+ft <- flextable(yearly_counts_tbl) %>%
+  set_header_labels(YEAR = "Year", Incidents = "Incidents") %>%
+  colformat_num(j = "YEAR", digits = 0, big.mark = "") %>%   # no commas for year
+  colformat_num(j = "Incidents", digits = 0, big.mark = ",") %>%
+  theme_booktabs() %>%
+  autofit() %>%
+  align(align = "center", part = "header") %>%
+  bold(part = "header") %>%
+  set_caption("Total Police Incidents by Year")
+
+# Footer note if partial latest year
+if (is_partial) {
+  ft <- add_footer_lines(
+    ft,
+    paste0(latest_year, " is Jan–Jun only.")
+  )
+}
+
+ft
+
+
+
+```
+
+
+\newpage
+
+
+```{r chart4_monthly_counts}
+
+# Purpose: Bar chart of total incidents by month (2019–2024), with labeled average line.
+# Ensures all 12 months appear (uses tidyr::complete).
+
+df_19_24 <- df_filtered_clean_updated |>
+  dplyr::filter(!is.na(received_date)) |>
+  dplyr::filter(lubridate::year(received_date) >= 2019,
+                lubridate::year(received_date) <= 2024) |>
+  dplyr::mutate(
+    MonthNum = lubridate::month(received_date),
+    Month    = factor(month.name[MonthNum], levels = month.name)
+  ) |>
+  dplyr::count(Month, name = "Incidents") |>
+  tidyr::complete(Month = factor(month.name, levels = month.name),
+                  fill = list(Incidents = 0)) |>
+  dplyr::arrange(Month)
+
+monthly_totals <- df_19_24  # keep for the table chunk
+
+avg_month <- mean(monthly_totals$Incidents, na.rm = TRUE)
+
+ggplot2::ggplot(monthly_totals, ggplot2::aes(x = Month, y = Incidents)) +
+  ggplot2::geom_col(fill = "#cfe8ff", color = "black", width = 0.8) +
+  ggplot2::geom_hline(yintercept = avg_month, linetype = "dashed", linewidth = 0.9) +
+  ggplot2::annotate(
+    "text",
+    x = length(month.name) - 0.2,
+    y = avg_month,
+    label = paste0("Average (2019–2024): ", round(avg_month, 0)),
+    vjust = -0.6, size = 3
+  ) +
+  ggplot2::labs(
+    title = "Total Incidents by Month (2019–2024)",
+    x = NULL, y = "Incidents"
+  ) +
+  ggplot2::theme_minimal() +
+  ggplot2::theme(
+    panel.grid.major.x = ggplot2::element_blank(),
+    panel.grid.minor = ggplot2::element_blank(),
+    plot.title = ggplot2::element_text(hjust = 0.5, face = "bold")
+  )
+
+```
+
+\newpage
+
+
+```{r table4_monthly_counts}
+
+# Purpose: Flextable of total incidents by month (2019–2024) with an average row.
+# Uses the monthly_totals built in the chart chunk; rebuilds if missing.
+
+if (!exists("monthly_totals")) {
+  monthly_totals <- df_filtered_clean_updated |>
+    dplyr::filter(!is.na(received_date)) |>
+    dplyr::filter(lubridate::year(received_date) >= 2019,
+                  lubridate::year(received_date) <= 2024) |>
+    dplyr::mutate(
+      MonthNum = lubridate::month(received_date),
+      Month    = factor(month.name[MonthNum], levels = month.name)
+    ) |>
+    dplyr::count(Month, name = "Incidents") |>
+    tidyr::complete(Month = factor(month.name, levels = month.name),
+                    fill = list(Incidents = 0)) |>
+    dplyr::arrange(Month)
+}
+
+avg_row <- tibble::tibble(
+  Month = "Average (2019–2024)",
+  Incidents = round(mean(monthly_totals$Incidents, na.rm = TRUE), 0)
+)
+
+monthly_totals_with_avg <- dplyr::bind_rows(monthly_totals, avg_row)
+
+flextable::flextable(monthly_totals_with_avg) |>
+  flextable::set_header_labels(Month = "Month", Incidents = "Incidents") |>
+  flextable::colformat_num(j = "Incidents", digits = 0, big.mark = "") |>
+  flextable::theme_booktabs() |>
+  flextable::autofit() |>
+  flextable::align(align = "center", part = "header") |>
+  flextable::align(j = "Incidents", align = "right", part = "body") |>
+  flextable::set_caption("Total Incidents by Month (2019–2024)") |>
+  flextable::add_footer_lines("Note: 2025 excluded (only half year available).")
+
+
+
+```
+
+
+\newpage
+```{r export_for_Tableau}
+
+# --- Export for Tableau (police) ---  # added
+police_tableau <- df_filtered_clean_updated %>%
+  dplyr::transmute(
+    EVENT_NUMBER   = event_number,              # ID
+    INCIDENT_DATE  = received_date,             # choose your date field
+    INCIDENT_TYPE  = call_for_service,          # "type"
+    LATITUDE       = as.numeric(latitude),
+    LONGITUDE      = as.numeric(longitude),
+    BAD_LATLON_FLAG = BAD_LATLON_FLAG           # keep temporarily so we can filter
+  ) %>%
+  # parse date robustly (handles date or datetime)
+  dplyr::mutate(
+    INCIDENT_DATE = suppressWarnings(lubridate::ymd_hms(INCIDENT_DATE)),
+    INCIDENT_DATE = ifelse(is.na(INCIDENT_DATE),
+                           as.Date(suppressWarnings(lubridate::ymd(INCIDENT_DATE))),
+                           as.Date(INCIDENT_DATE)),
+    INCIDENT_DATE = as.Date(INCIDENT_DATE),
+    INCIDENT_YEAR  = lubridate::year(INCIDENT_DATE),
+    INCIDENT_MONTH = lubridate::month(INCIDENT_DATE, label = TRUE, abbr = TRUE)
+  ) %>%
+  # drop unusable coords
+  dplyr::filter(!is.na(LATITUDE), !is.na(LONGITUDE)) %>%
+  # drop bad lat/lon rows if flagged (works for 1/TRUE/"TRUE"/"Y")
+  dplyr::filter(!(tolower(as.character(BAD_LATLON_FLAG)) %in% c("1","true","y","yes"))) %>%
+  dplyr::select(-BAD_LATLON_FLAG)
+
+readr::write_csv(
+  police_tableau,
+  "D:/Documents/Employment/2025 job search/Project 2025/el-cerrito-police-report/data/el_cerrito_police_tableau.csv"
+)
+
+cat("✅ Exported", nrow(police_tableau), "rows for Tableau.\n")
+
+
+```
